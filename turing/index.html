@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TURING-OS // TRADUTORA RETRO-FUTURISTA</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&family=Orbitron:wght@500;700;900&display=swap');
+
+    :root {
+      --crt-green: #00ff66;
+      --crt-amber: #ffb000;
+      --crt-cyan: #00f3ff;
+      --crt-pink: #ff0055;
+      --crt-bg: #050b08;
+      --tape-cell-w: 64px;
+    }
+
+    body {
+      background-color: var(--crt-bg);
+      color: var(--crt-green);
+      font-family: 'Share Tech Mono', monospace;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    /* CRT Scanline & Phosphor Glow Effect */
+    .crt-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+                  linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    .crt-glow {
+      text-shadow: 0 0 4px rgba(0, 255, 102, 0.7), 0 0 12px rgba(0, 255, 102, 0.4);
+    }
+    .amber-glow {
+      text-shadow: 0 0 4px rgba(255, 176, 0, 0.7), 0 0 12px rgba(255, 176, 0, 0.4);
+    }
+    .cyan-glow {
+      text-shadow: 0 0 4px rgba(0, 243, 255, 0.7), 0 0 12px rgba(0, 243, 255, 0.4);
+    }
+
+    .retro-border {
+      border: 2px solid var(--crt-green);
+      box-shadow: inset 0 0 10px rgba(0, 255, 102, 0.25), 0 0 12px rgba(0, 255, 102, 0.25);
+    }
+
+    .retro-border-amber {
+      border: 2px solid var(--crt-amber);
+      box-shadow: inset 0 0 10px rgba(255, 176, 0, 0.25), 0 0 12px rgba(255, 176, 0, 0.25);
+    }
+
+    .retro-border-cyan {
+      border: 2px solid var(--crt-cyan);
+      box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.25), 0 0 12px rgba(0, 243, 255, 0.25);
+    }
+
+    /* Tape Track styling */
+    .tape-viewport {
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at center, #07170e 0%, #030805 100%);
+    }
+
+    .tape-strip {
+      display: flex;
+      transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+      will-change: transform;
+    }
+
+    .tape-cell {
+      min-width: var(--tape-cell-w);
+      max-width: var(--tape-cell-w);
+      height: 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(0, 255, 102, 0.25);
+      background: rgba(0, 255, 102, 0.03);
+      user-select: none;
+    }
+
+    .tape-cell.active-cell {
+      background: rgba(0, 255, 102, 0.18);
+      border: 2px solid var(--crt-green);
+      box-shadow: 0 0 15px rgba(0, 255, 102, 0.6);
+    }
+
+    .cell-val {
+      font-size: 28px;
+      font-family: 'Orbitron', monospace;
+      font-weight: 700;
+    }
+
+    .cell-idx {
+      font-size: 11px;
+      color: rgba(0, 255, 102, 0.5);
+      margin-top: -4px;
+    }
+
+    /* Retícula central da cabeça */
+    .head-cursor {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: var(--tape-cell-w);
+      border-left: 2px dashed rgba(255, 0, 85, 0.85);
+      border-right: 2px dashed rgba(255, 0, 85, 0.85);
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .head-pointer-top {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-top: 14px solid #ff0055;
+      filter: drop-shadow(0 0 6px #ff0055);
+      z-index: 30;
+    }
+
+    .head-pointer-bottom {
+      position: absolute;
+      bottom: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 14px solid #ff0055;
+      filter: drop-shadow(0 0 6px #ff0055);
+      z-index: 30;
+    }
+
+    /* Log terminal */
+    .terminal-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .terminal-scroll::-webkit-scrollbar-thumb {
+      background: var(--crt-green);
+    }
+
+    /* Flickering retro buttons */
+    .retro-btn {
+      background: #021a0c;
+      border: 1px solid var(--crt-green);
+      color: var(--crt-green);
+      text-transform: uppercase;
+      font-family: 'Orbitron', monospace;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .retro-btn:hover {
+      background: var(--crt-green);
+      color: #030805;
+      box-shadow: 0 0 15px rgba(0, 255, 102, 0.8);
+    }
+    .retro-btn:active {
+      transform: scale(0.97);
+    }
+    .retro-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .retro-btn-amber {
+      border-color: var(--crt-amber);
+      color: var(--crt-amber);
+      background: #1a1202;
+    }
+    .retro-btn-amber:hover {
+      background: var(--crt-amber);
+      color: #110b00;
+      box-shadow: 0 0 15px rgba(255, 176, 0, 0.8);
+    }
+
+    .retro-btn-pink {
+      border-color: var(--crt-pink);
+      color: var(--crt-pink);
+      background: #1f020a;
+    }
+    .retro-btn-pink:hover {
+      background: var(--crt-pink);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(255, 0, 85, 0.8);
+    }
+  </style>
+</head>
+<body class="p-3 md:p-6 min-h-screen">
+  <div class="crt-overlay"></div>
+
+  <div class="max-w-6xl mx-auto space-y-4">
+    <!-- Header Retro / Cyberdeck -->
+    <header class="retro-border p-4 bg-black/60 relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-2">
+      <div class="flex items-center gap-3">
+        <div class="w-4 h-4 bg-emerald-400 rounded-full animate-ping"></div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-black font-['Orbitron'] tracking-widest crt-glow text-emerald-400">
+            MAQUINA DE TURING TRADUTORA
+          </h1>
+          <p class="text-xs text-emerald-500/80 tracking-wider">
+            SISTEMA FORMAL M = (Q, Σ, Γ, δ, q₀, •, F) | MOVIMENTAÇÃO: {L, R}
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 text-xs">
+        <div class="border border-emerald-500/40 px-2.5 py-1 bg-emerald-950/30">
+          STATUS: <span id="status-pill" class="text-emerald-300 font-bold">PRONTO</span>
+        </div>
+        <div class="border border-emerald-500/40 px-2.5 py-1 bg-emerald-950/30">
+          PASSOS: <span id="step-counter" class="text-amber-400 font-bold">0</span>
+        </div>
+        <div class="border border-emerald-500/40 px-2.5 py-1 bg-emerald-950/30">
+          ESTADO: <span id="state-display" class="text-cyan-400 font-bold">q0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Painel de Seleção de Operações & Entrada -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 retro-border p-4 bg-black/40 space-y-3">
+        <div class="text-xs font-bold tracking-widest text-emerald-400 flex justify-between items-center">
+          <span>SELECIONE A OPERAÇÃO DESEJADA</span>
+          <span class="text-emerald-500/60">[f: Σ* → Γ*]</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+          <button onclick="selectPreset('1')" id="btn-op-1" class="retro-btn py-2 px-2 text-center text-xs">
+            1. Incr. Binário
+          </button>
+          <button onclick="selectPreset('2')" id="btn-op-2" class="retro-btn py-2 px-2 text-center text-xs">
+            2. Adição Unária
+          </button>
+          <button onclick="selectPreset('3')" id="btn-op-3" class="retro-btn py-2 px-2 text-center text-xs">
+            3. Cópia String
+          </button>
+          <button onclick="selectPreset('4')" id="btn-op-4" class="retro-btn py-2 px-2 text-center text-xs">
+            4. Compl. Dois
+          </button>
+          <button onclick="selectPreset('5')" id="btn-op-5" class="retro-btn py-2 px-2 text-center text-xs col-span-2 sm:col-span-1">
+            5. Adição Binária
+          </button>
+        </div>
+
+        <!-- Entrada da Fita -->
+        <div class="pt-2 border-t border-emerald-500/20">
+          <label class="block text-xs text-emerald-400 mb-1" id="input-helper">
+            ENTRADA DA FITA (w):
+          </label>
+          <div class="flex gap-2">
+            <input type="text" id="tape-input" value="0111" 
+                   class="flex-1 bg-emerald-950/20 border-2 border-emerald-500 text-emerald-300 px-3 py-2 font-mono text-sm tracking-widest focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400">
+            <button onclick="loadCustomTape()" class="retro-btn px-4 py-2 text-xs font-bold">
+              GRAVAR FITA
+            </button>
+            <button onclick="resetMachine()" class="retro-btn-amber px-4 py-2 text-xs font-bold">
+              RESET
+            </button>
+          </div>
+          <div id="quick-examples" class="flex flex-wrap gap-2 mt-2 text-xs text-emerald-500/70 items-center">
+            <span>Testes rápidos:</span>
+            <!-- Preenchido dinamicamente via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Métricas & Painel de Transição Atual -->
+      <div class="retro-border-cyan p-4 bg-black/40 flex flex-col justify-between space-y-3">
+        <div>
+          <div class="text-xs font-bold text-cyan-400 tracking-widest mb-2 flex justify-between">
+            <span>TRANSIÇÃO δ ATIVA</span>
+            <span class="text-cyan-500/60">Q × Γ → Q × Γ × {L,R}</span>
+          </div>
+          <div class="p-3 bg-cyan-950/20 border border-cyan-500/40 text-center font-mono">
+            <div id="delta-display" class="text-base font-bold text-cyan-300">
+              δ(q0, '0') → ('q0', '0', R)
+            </div>
+            <div id="action-summary" class="text-xs text-cyan-400/70 mt-1">
+              Lendo '0' | Escrevendo '0' | Movendo Direita
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-1.5 text-xs font-mono">
+          <div class="flex justify-between border-b border-cyan-500/20 pb-1">
+            <span class="text-cyan-500/80">Símbolo Lido:</span>
+            <span id="read-sym-display" class="font-bold text-cyan-300 text-sm">_</span>
+          </div>
+          <div class="flex justify-between border-b border-cyan-500/20 pb-1">
+            <span class="text-cyan-500/80">Posição Cabeçote:</span>
+            <span id="head-idx-display" class="font-bold text-cyan-300">0</span>
+          </div>
+          <div class="flex justify-between border-b border-cyan-500/20 pb-1">
+            <span class="text-cyan-500/80">Estado Final qf:</span>
+            <span id="is-final-display" class="font-bold text-emerald-400">NÃO</span>
+          </div>
+          <div class="flex justify-between pt-1">
+            <span class="text-cyan-500/80">Saída Gravada f(w):</span>
+            <span id="tape-res-display" class="font-bold text-amber-300 tracking-wider">[ - ]</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAPE DISPLAY CONTAINER (A FITA BI-INFINITA) -->
+    <div class="retro-border p-4 bg-black/70 space-y-2 relative">
+      <div class="flex justify-between items-center text-xs">
+        <span class="text-emerald-400 tracking-widest font-bold">FITA DUPLAMENTE INFINITA</span>
+        <span class="text-rose-400 text-xs font-mono flex items-center gap-1">
+          <span class="inline-block w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
+          CABEÇA DE LEITURA / GRAVADORA
+        </span>
+      </div>
+
+      <div class="tape-viewport py-6 rounded border border-emerald-500/30">
+        <div class="head-pointer-top"></div>
+        <div class="head-cursor"></div>
+        <div class="head-pointer-bottom"></div>
+
+        <div id="tape-strip" class="tape-strip">
+          <!-- Células geradas via JS -->
+        </div>
+      </div>
+
+      <div class="text-[11px] text-emerald-500/60 text-center font-mono pt-1">
+        • = Símbolo Branco (célula livre) | Cabeçote fixo ao centro com rolagem inercial
+      </div>
+    </div>
+
+    <!-- CONTROLES DE REPRODUÇÃO & TELEMETRIA -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Painel de Controles -->
+      <div class="retro-border p-4 bg-black/50 space-y-3 md:col-span-2">
+        <div class="text-xs font-bold text-emerald-400 tracking-widest">
+          CONTROLES DE EXECUÇÃO
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <button id="btn-play" onclick="togglePlay()" class="retro-btn px-5 py-2.5 text-xs font-bold">
+            ▶ EXECUTAR
+          </button>
+          <button id="btn-step" onclick="stepOnce()" class="retro-btn px-4 py-2.5 text-xs font-bold">
+            PASSO (1X)
+          </button>
+          <button onclick="runFast()" class="retro-btn px-4 py-2.5 text-xs font-bold">
+            DIRETO AO FINAL
+          </button>
+          <button onclick="exportCurrentJFF()" class="retro-btn px-4 py-2.5 text-xs font-bold">
+            SALVAR .jff
+          </button>
+          <button onclick="resetMachine()" class="retro-btn-pink px-4 py-2.5 text-xs font-bold ml-auto">
+            PARAR & RESET
+          </button>
+        </div>
+
+        <div class="flex items-center gap-4 text-xs pt-2">
+          <span class="text-emerald-500/80">VELOCIDADE:</span>
+          <input type="range" id="speed-slider" min="300" max="900" value="900" 
+                 class="flex-1 accent-emerald-400 cursor-pointer" oninput="updateSpeed(this.value)">
+          <span id="speed-label" class="font-mono text-emerald-300 w-16 text-right">900ms</span>
+        </div>
+      </div>
+
+      <!-- Terminal de Log dos Passos -->
+      <div class="retro-border p-3 bg-black/60 flex flex-col h-44">
+        <div class="text-[11px] font-bold text-emerald-400 tracking-widest pb-1 border-b border-emerald-500/30 flex justify-between">
+          <span>HISTÓRICO DE CONFIGURAÇÕES</span>
+          <button onclick="clearLog()" class="text-[10px] text-emerald-500/60 hover:text-emerald-300">LIMPAR</button>
+        </div>
+        <div id="step-log" class="terminal-scroll overflow-y-auto flex-1 font-mono text-xs space-y-1 pt-2 pr-1 text-emerald-400/80">
+          <div>[SISTEMA] MT inicializada. Aguardando comando.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────────────────
+    // MOTOR DA MÁQUINA DE TURING (7-TUPLA PURA - SEM STAY)
+    // ─────────────────────────────────────────────────────────────────────────
+    const BLANK = "_";
+    const LEFT = "L";
+    const RIGHT = "R";
+
+    // Operações Definidas com tabelas puras de transição {L, R}
+    const OPERACOES = {
+      "1": {
+        name: "Incremento Binário (n → n+1)",
+        hint: "Número binário puro",
+        defaultInput: "0111",
+        examples: ["0", "0111", "1111", "1010"],
+        states: ["q0", "q1", "qf"],
+        q0: "q0",
+        acceptStates: ["qf"],
+        delta: {
+          "q0,0": { next: "q0", write: "0", dir: RIGHT },
+          "q0,1": { next: "q0", write: "1", dir: RIGHT },
+          "q0,_": { next: "q1", write: "_", dir: LEFT  },
+          "q1,1": { next: "q1", write: "0", dir: LEFT  },
+          "q1,0": { next: "qf", write: "1", dir: RIGHT },
+          "q1,_": { next: "qf", write: "1", dir: RIGHT }
+        }
+      },
+      "2": {
+        name: "Adição Unária (1^m · 0 · 1^n → 1^(m+n))",
+        hint: "Notação unária separada por '0'",
+        defaultInput: "111011",
+        examples: ["101", "111011", "10111", "11101111"],
+        states: ["q0", "q1", "q2", "qf"],
+        q0: "q0",
+        acceptStates: ["qf"],
+        delta: {
+          "q0,1": { next: "q0", write: "1", dir: RIGHT },
+          "q0,0": { next: "q1", write: "1", dir: RIGHT },
+          "q1,1": { next: "q1", write: "1", dir: RIGHT },
+          "q1,_": { next: "q2", write: "_", dir: LEFT  },
+          "q2,1": { next: "qf", write: "_", dir: RIGHT }
+        }
+      },
+      "3": {
+        name: "Cópia de String Binária (w → w#w)",
+        hint: "Cadeia binária a ser duplicada",
+        defaultInput: "101",
+        examples: ["1", "0", "101", "110", "00"],
+        states: ["q0", "qA", "qB", "qAI", "qBI", "qA1", "qB1", "qRet", "qFixL", "qFix", "qf"],
+        q0: "q0",
+        acceptStates: ["qf"],
+        delta: {
+          "q0,a": { next: "q0", write: "a", dir: RIGHT },
+          "q0,b": { next: "q0", write: "b", dir: RIGHT },
+          "q0,0": { next: "qA", write: "a", dir: RIGHT },
+          "q0,1": { next: "qB", write: "b", dir: RIGHT },
+          "q0,#": { next: "qFixL", write: "#", dir: LEFT },
+          "q0,_": { next: "q0", write: "_", dir: RIGHT },
+
+          "qA,0": { next: "qA", write: "0", dir: RIGHT },
+          "qA,1": { next: "qA", write: "1", dir: RIGHT },
+          "qA,a": { next: "qA", write: "a", dir: RIGHT },
+          "qA,b": { next: "qA", write: "b", dir: RIGHT },
+          "qA,#": { next: "qA1", write: "#", dir: RIGHT },
+          "qA,_": { next: "qAI", write: "#", dir: RIGHT },
+
+          "qB,0": { next: "qB", write: "0", dir: RIGHT },
+          "qB,1": { next: "qB", write: "1", dir: RIGHT },
+          "qB,a": { next: "qB", write: "a", dir: RIGHT },
+          "qB,b": { next: "qB", write: "b", dir: RIGHT },
+          "qB,#": { next: "qB1", write: "#", dir: RIGHT },
+          "qB,_": { next: "qBI", write: "#", dir: RIGHT },
+
+          "qAI,_": { next: "qRet", write: "0", dir: LEFT },
+          "qBI,_": { next: "qRet", write: "1", dir: LEFT },
+
+          "qA1,0": { next: "qA1", write: "0", dir: RIGHT },
+          "qA1,1": { next: "qA1", write: "1", dir: RIGHT },
+          "qA1,_": { next: "qRet", write: "0", dir: LEFT },
+
+          "qB1,0": { next: "qB1", write: "0", dir: RIGHT },
+          "qB1,1": { next: "qB1", write: "1", dir: RIGHT },
+          "qB1,_": { next: "qRet", write: "1", dir: LEFT },
+
+          "qRet,0": { next: "qRet", write: "0", dir: LEFT },
+          "qRet,1": { next: "qRet", write: "1", dir: LEFT },
+          "qRet,#": { next: "qRet", write: "#", dir: LEFT },
+          "qRet,a": { next: "qRet", write: "a", dir: LEFT },
+          "qRet,b": { next: "qRet", write: "b", dir: LEFT },
+          "qRet,_": { next: "q0", write: "_", dir: RIGHT },
+
+          "qFixL,a": { next: "qFixL", write: "a", dir: LEFT },
+          "qFixL,b": { next: "qFixL", write: "b", dir: LEFT },
+          "qFixL,0": { next: "qFixL", write: "0", dir: LEFT },
+          "qFixL,1": { next: "qFixL", write: "1", dir: LEFT },
+          "qFixL,#": { next: "qFixL", write: "#", dir: LEFT },
+          "qFixL,_": { next: "qFix", write: "_", dir: RIGHT },
+
+          "qFix,a": { next: "qFix", write: "0", dir: RIGHT },
+          "qFix,b": { next: "qFix", write: "1", dir: RIGHT },
+          "qFix,0": { next: "qFix", write: "0", dir: RIGHT },
+          "qFix,1": { next: "qFix", write: "1", dir: RIGHT },
+          "qFix,#": { next: "qFix", write: "#", dir: RIGHT },
+          "qFix,_": { next: "qf", write: "_", dir: LEFT }
+        }
+      },
+      "4": {
+        name: "Complemento de Dois (~n + 1)",
+        hint: "Número binário a ser invertido em complemento de dois",
+        defaultInput: "0011",
+        examples: ["0011", "0001", "0100", "1000"],
+        states: ["q0", "q1", "q2", "qf"],
+        q0: "q0",
+        acceptStates: ["qf"],
+        delta: {
+          "q0,0": { next: "q0", write: "0", dir: RIGHT },
+          "q0,1": { next: "q0", write: "1", dir: RIGHT },
+          "q0,_": { next: "q1", write: "_", dir: LEFT  },
+          "q1,0": { next: "q1", write: "0", dir: LEFT  },
+          "q1,1": { next: "q2", write: "1", dir: LEFT  },
+          "q1,_": { next: "qf", write: "_", dir: RIGHT },
+          "q2,0": { next: "q2", write: "1", dir: LEFT  },
+          "q2,1": { next: "q2", write: "0", dir: LEFT  },
+          "q2,_": { next: "qf", write: "_", dir: RIGHT }
+        }
+      },
+      "5": {
+        name: "Adição Binária (A + B)",
+        hint: "Dois números binários separados por '+'",
+        defaultInput: "011+101",
+        examples: ["1+1", "011+101", "111+001", "110+110"],
+        states: ["q0", "qDecB", "qGoToA", "qIncA", "qBackToB", "qClean", "qf"],
+        q0: "q0",
+        acceptStates: ["qf"],
+        delta: {
+          "q0,0": { next: "q0", write: "0", dir: RIGHT },
+          "q0,1": { next: "q0", write: "1", dir: RIGHT },
+          "q0,+": { next: "q0", write: "+", dir: RIGHT },
+          "q0,_": { next: "qDecB", write: "_", dir: LEFT },
+          "qDecB,0": { next: "qDecB", write: "1", dir: LEFT },
+          "qDecB,1": { next: "qGoToA", write: "0", dir: LEFT },
+          "qDecB,+": { next: "qClean", write: "_", dir: RIGHT },
+          "qGoToA,0": { next: "qGoToA", write: "0", dir: LEFT },
+          "qGoToA,1": { next: "qGoToA", write: "1", dir: LEFT },
+          "qGoToA,+": { next: "qIncA", write: "+", dir: LEFT },
+          "qIncA,1": { next: "qIncA", write: "0", dir: LEFT },
+          "qIncA,0": { next: "qBackToB", write: "1", dir: RIGHT },
+          "qIncA,_": { next: "qBackToB", write: "1", dir: RIGHT },
+          "qBackToB,0": { next: "qBackToB", write: "0", dir: RIGHT },
+          "qBackToB,1": { next: "qBackToB", write: "1", dir: RIGHT },
+          "qBackToB,+": { next: "qBackToB", write: "+", dir: RIGHT },
+          "qBackToB,_": { next: "qDecB", write: "_", dir: LEFT },
+          "qClean,0": { next: "qClean", write: "_", dir: RIGHT },
+          "qClean,1": { next: "qClean", write: "_", dir: RIGHT },
+          "qClean,_": { next: "qf", write: "_", dir: LEFT }
+        }
+      }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ESTADO DA MÁQUINA EM EXECUÇÃO
+    // ─────────────────────────────────────────────────────────────────────────
+    let currentOpKey = "1";
+    let tapeMap = new Map(); // idx -> char
+    let head = 0;
+    let state = "q0";
+    let steps = 0;
+    let isRunning = false;
+    let timer = null;
+    let delayMs = 900;
+
+    // Elementos DOM
+    const tapeStripEl = document.getElementById("tape-strip");
+    const deltaDisplayEl = document.getElementById("delta-display");
+    const actionSummaryEl = document.getElementById("action-summary");
+    const statusPillEl = document.getElementById("status-pill");
+    const stepCounterEl = document.getElementById("step-counter");
+    const stateDisplayEl = document.getElementById("state-display");
+    const tapeResDisplayEl = document.getElementById("tape-res-display");
+    const stepLogEl = document.getElementById("step-log");
+    const headIdxDisplayEl = document.getElementById("head-idx-display");
+    const readSymDisplayEl = document.getElementById("read-sym-display");
+    const isFinalDisplayEl = document.getElementById("is-final-display");
+    const tapeInputEl = document.getElementById("tape-input");
+    const inputHelperEl = document.getElementById("input-helper");
+    const quickExamplesEl = document.getElementById("quick-examples");
+    const btnPlayEl = document.getElementById("btn-play");
+
+    // Inicialização
+    function init() {
+      selectPreset("1");
+    }
+
+    function selectPreset(key) {
+      currentOpKey = key;
+      const op = OPERACOES[key];
+      
+      // Atualizar botões
+      for (let i = 1; i <= 5; i++) {
+        const btn = document.getElementById(`btn-op-${i}`);
+        if (i.toString() === key) {
+          btn.classList.add("retro-border-amber", "text-amber-300");
+          btn.classList.remove("text-emerald-400");
+        } else {
+          btn.classList.remove("retro-border-amber", "text-amber-300");
+        }
+      }
+
+      inputHelperEl.innerText = `ENTRADA DA FITA (w) | ${op.hint}:`;
+      tapeInputEl.value = op.defaultInput;
+
+      // Renderizar testes rápidos
+      quickExamplesEl.innerHTML = `<span>Testes rápidos:</span>`;
+      op.examples.forEach(ex => {
+        const span = document.createElement("button");
+        span.className = "px-1.5 py-0.5 border border-emerald-500/40 hover:bg-emerald-500/20 text-emerald-300 font-mono text-[11px]";
+        span.innerText = ex;
+        span.onclick = () => { tapeInputEl.value = ex; loadCustomTape(); };
+        quickExamplesEl.appendChild(span);
+      });
+
+      loadCustomTape();
+    }
+
+    function loadCustomTape() {
+      stop();
+      const str = tapeInputEl.value.trim() || "_";
+      tapeMap.clear();
+      for (let i = 0; i < str.length; i++) {
+        tapeMap.set(i, str[i]);
+      }
+      head = 0;
+      steps = 0;
+      state = OPERACOES[currentOpKey].q0 || "q0";
+
+      // Adição especial
+      if (OPERACOES[currentOpKey].isRippleSpecial) {
+        initRippleAddition(str);
+      }
+
+      updateUI();
+      log(`[CARGA] Fita inicial gravada com: "${str}". Estado inicial: ${state}`);
+    }
+
+    function resetMachine() {
+      loadCustomTape();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LÓGICA ESPECIAL PARA ADIÇÃO BINÁRIA RIPPLE
+    // ─────────────────────────────────────────────────────────────────────────
+    let rippleSteps = [];
+    let rippleIdx = 0;
+
+    function initRippleAddition(str) {
+      if (!str.includes("+")) {
+        log(`[ERRO] Operação requer '+' separando os binários.`);
+        return;
+      }
+      const parts = str.split("+");
+      if (parts.length !== 2) return;
+      let [A, B] = parts;
+      const maxL = Math.max(A.length, B.length);
+      A = A.padStart(maxL, "0");
+      B = B.padStart(maxL, "0");
+
+      rippleSteps = [];
+      let carry = 0;
+      let resBits = [];
+
+      for (let i = maxL - 1; i >= 0; i--) {
+        const ba = parseInt(A[i]);
+        const bb = parseInt(B[i]);
+        const cin = carry;
+        const total = ba + bb + cin;
+        const bitR = total % 2;
+        carry = Math.floor(total / 2);
+        resBits.push(bitR.toString());
+
+        rippleSteps.push({
+          state: `q_c${cin}`,
+          nextState: `q_c${carry}`,
+          read: A[i],
+          write: bitR.toString(),
+          dir: LEFT,
+          head: i,
+          desc: `Somando ${ba} + ${bb} + cin(${cin}) = bit ${bitR}, cout ${carry}`
+        });
+      }
+
+      if (carry > 0) {
+        resBits.push("1");
+        rippleSteps.push({
+          state: "q_c1",
+          nextState: "qf",
+          read: "_",
+          write: "1",
+          dir: LEFT,
+          head: -1,
+          desc: `Carry final propagado: escreve 1 na fita`
+        });
+      }
+
+      const finalStr = resBits.reverse().join("");
+      rippleSteps.push({
+        state: "qf",
+        finalOutput: finalStr,
+        isHalt: true
+      });
+
+      rippleIdx = 0;
+      state = "q_scan";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PASSO DA MÁQUINA DE TURING
+    // ─────────────────────────────────────────────────────────────────────────
+    function stepOnce() {
+      const op = OPERACOES[currentOpKey];
+
+      // Caso Adição Binária Ripple
+      if (op.isRippleSpecial) {
+        if (rippleIdx >= rippleSteps.length) {
+          finishComputation(true);
+          return false;
+        }
+        const s = rippleSteps[rippleIdx++];
+        if (s.isHalt) {
+          state = "qf";
+          tapeMap.clear();
+          for (let i = 0; i < s.finalOutput.length; i++) {
+            tapeMap.set(i, s.finalOutput[i]);
+          }
+          head = 0;
+          steps++;
+          finishComputation(true);
+          updateUI();
+          return false;
+        }
+
+        state = s.nextState;
+        head = s.head;
+        steps++;
+        deltaDisplayEl.innerText = `δ(${s.state}, '${s.read}') → ('${s.nextState}', '${s.write}', ${s.dir})`;
+        actionSummaryEl.innerText = s.desc;
+        log(`Passo ${steps}: ${s.desc} [${s.nextState}]`);
+        updateUI();
+        return true;
+      }
+
+      // Máquina de Turing padrão baseada em tabela δ
+      const sym = tapeMap.get(head) || BLANK;
+      const key = `${state},${sym}`;
+      const trans = op.delta[key];
+
+      // Verificar estado final
+      if (op.acceptStates.includes(state)) {
+        finishComputation(true);
+        return false;
+      }
+
+      // Sem transição definida -> diverge
+      if (!trans) {
+        finishComputation(false, `Sem transição para δ(${state}, '${sym}')`);
+        return false;
+      }
+
+      // Aplica regra de transição
+      tapeMap.set(head, trans.write);
+      const prevState = state;
+      const prevHead = head;
+      state = trans.next;
+
+      if (trans.dir === RIGHT) head++;
+      else if (trans.dir === LEFT) head--;
+
+      steps++;
+
+      deltaDisplayEl.innerText = `δ(${prevState}, '${sym}') → ('${trans.next}', '${trans.write}', ${trans.dir})`;
+      actionSummaryEl.innerText = `Lido '${sym}' | Gravou '${trans.write}' | Moveu ${trans.dir === 'R' ? 'Direita' : 'Esquerda'}`;
+
+      log(`[${steps}] δ(${prevState}, '${sym}') = (${trans.next}, '${trans.write}', ${trans.dir}) | Cabeçote: ${head}`);
+
+      // Se entrou em estado final agora
+      if (op.acceptStates.includes(state)) {
+        updateUI();
+        finishComputation(true);
+        return false;
+      }
+
+      updateUI();
+      return true;
+    }
+
+    function finishComputation(accepted, reason = "") {
+      stop();
+      if (accepted) {
+        statusPillEl.innerText = "ACEITO // qf ∈ F";
+        statusPillEl.className = "text-emerald-300 font-bold crt-glow";
+        const res = getTapeContent();
+        tapeResDisplayEl.innerText = `[ ${res} ]`;
+        log(`✔ COMPUTADO COM SUCESSO: f(w) = ${res}`);
+      } else {
+        statusPillEl.innerText = "DIVERGE // NÃO DEFINIDO";
+        statusPillEl.className = "text-rose-400 font-bold";
+        log(`⚠ DIVERGÊNCIA: ${reason || 'Parou em estado não-final'}`);
+      }
+    }
+
+    function getTapeContent() {
+      if (tapeMap.size === 0) return BLANK;
+      const keys = Array.from(tapeMap.keys());
+      const min = Math.min(...keys);
+      const max = Math.max(...keys);
+      let s = "";
+      for (let i = min; i <= max; i++) {
+        s += tapeMap.get(i) || BLANK;
+      }
+      return s.replace(/^_+|_+$/g, '') || BLANK;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONTROLES DE REPRODUÇÃO
+    // ─────────────────────────────────────────────────────────────────────────
+    function togglePlay() {
+      if (isRunning) {
+        stop();
+      } else {
+        start();
+      }
+    }
+
+    function start() {
+      if (isRunning) return;
+      const op = OPERACOES[currentOpKey];
+      if (op.acceptStates && op.acceptStates.includes(state)) {
+        loadCustomTape();
+      }
+      isRunning = true;
+      btnPlayEl.innerText = "⏸ PAUSAR";
+      btnPlayEl.classList.add("retro-border-amber", "text-amber-300");
+      statusPillEl.innerText = "EXECUTANDO";
+      statusPillEl.className = "text-cyan-400 font-bold animate-pulse";
+
+      function loop() {
+        if (!isRunning) return;
+        const cont = stepOnce();
+        if (cont && isRunning) {
+          timer = setTimeout(loop, delayMs);
+        }
+      }
+      loop();
+    }
+
+    function stop() {
+      isRunning = false;
+      if (timer) clearTimeout(timer);
+      btnPlayEl.innerText = "▶ EXECUTAR";
+      btnPlayEl.classList.remove("retro-border-amber", "text-amber-300");
+    }
+
+    function runFast() {
+      stop();
+      let limit = 20000;
+      let cont = true;
+      while (cont && limit-- > 0) {
+        cont = stepOnce();
+      }
+      updateUI();
+    }
+
+    function updateSpeed(val) {
+      delayMs = parseInt(val);
+      document.getElementById("speed-label").innerText = `${delayMs}ms`;
+    }
+
+    function clearLog() {
+      stepLogEl.innerHTML = "";
+    }
+
+    function log(msg) {
+      const d = document.createElement("div");
+      d.innerText = `> ${msg}`;
+      stepLogEl.appendChild(d);
+      stepLogEl.scrollTop = stepLogEl.scrollHeight;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RENDERIZAÇÃO DA FITA DINÂMICA
+    // ─────────────────────────────────────────────────────────────────────────
+    function updateUI() {
+      stepCounterEl.innerText = steps;
+      stateDisplayEl.innerText = state;
+      headIdxDisplayEl.innerText = head;
+      const curSym = tapeMap.get(head) || BLANK;
+      readSymDisplayEl.innerText = curSym === BLANK ? '•' : curSym;
+      
+      const op = OPERACOES[currentOpKey];
+      const isFinal = (op.acceptStates && op.acceptStates.includes(state)) || state === "qf";
+      isFinalDisplayEl.innerText = isFinal ? "SIM (qf)" : "NÃO";
+      isFinalDisplayEl.className = isFinal ? "font-bold text-emerald-300 crt-glow" : "font-bold text-cyan-400";
+
+      tapeResDisplayEl.innerText = `[ ${getTapeContent()} ]`;
+
+      renderTapeCells();
+    }
+
+    function renderTapeCells() {
+      // Determinamos a faixa visível centralizada na cabeça
+      const VISIBLE_RADIUS = 12; // Células para cada lado
+      const startIdx = head - VISIBLE_RADIUS;
+      const endIdx = head + VISIBLE_RADIUS;
+
+      tapeStripEl.innerHTML = "";
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        const val = tapeMap.get(i) || BLANK;
+        const cell = document.createElement("div");
+        const isActive = (i === head);
+        cell.className = `tape-cell ${isActive ? 'active-cell' : ''}`;
+        
+        const valEl = document.createElement("div");
+        valEl.className = `cell-val ${isActive ? 'text-rose-400 crt-glow' : 'text-emerald-300'}`;
+        valEl.innerText = val === BLANK ? "•" : val;
+
+        const idxEl = document.createElement("div");
+        idxEl.className = "cell-idx";
+        idxEl.innerText = i;
+
+        cell.appendChild(valEl);
+        cell.appendChild(idxEl);
+        tapeStripEl.appendChild(cell);
+      }
+
+      // Alinhar a fita exatamente com a cabeça no centro
+      const cellWidth = 64;
+      const viewportWidth = tapeStripEl.parentElement.clientWidth;
+      const centerOffset = (viewportWidth / 2) - (cellWidth / 2);
+      const targetOffset = centerOffset - (VISIBLE_RADIUS * cellWidth);
+      tapeStripEl.style.transform = `translateX(${targetOffset}px)`;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXPORTAR ARQUIVO JFF (JFLAP 7.X) DINAMICAMENTE
+    // ─────────────────────────────────────────────────────────────────────────
+    function exportCurrentJFF() {
+      const op = OPERACOES[currentOpKey];
+      const states = op.states;
+      const initial = op.q0;
+      const accept = op.acceptStates;
+      const delta = op.delta;
+
+      // Calcular timestamp formatado no padrão: DIA_MES_HORA-MIN
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const timeStr = `${pad(now.getDate())}_${pad(now.getMonth() + 1)}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+
+      // Gerar slug do nome da operação
+      const opSlug = op.name
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+
+      const fileName = `${opSlug}_${timeStr}.jff`;
+
+      // Montar XML do JFLAP
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<structure>\n  <type>turing</type>\n  <automaton>\n';
+
+      // Posicionamento circular dos nós
+      const stateToId = {};
+      const n = states.length;
+      const radius = Math.max(180, n * 35);
+      const cx = radius + 80;
+      const cy = radius + 80;
+
+      states.forEach((st, idx) => {
+        stateToId[st] = idx;
+        const angle = (2 * Math.PI * idx) / n;
+        const x = (cx + radius * Math.cos(angle)).toFixed(1);
+        const y = (cy + radius * Math.sin(angle)).toFixed(1);
+
+        xml += `    <state id="${idx}" name="${st}">\n`;
+        xml += `      <x>${x}</x>\n`;
+        xml += `      <y>${y}</y>\n`;
+        if (st === initial) xml += `      <initial/>\n`;
+        if (accept.includes(st)) xml += `      <final/>\n`;
+        xml += `    </state>\n`;
+      });
+
+      // Transições
+      Object.entries(delta).forEach(([key, trans]) => {
+        const [fromState, readSym] = key.split(",");
+        const fromId = stateToId[fromState];
+        const toId = stateToId[trans.next];
+
+        if (fromId !== undefined && toId !== undefined) {
+          const readTag = (readSym === BLANK) ? '<read/>' : `<read>${readSym}</read>`;
+          const writeTag = (trans.write === BLANK) ? '<write/>' : `<write>${trans.write}</write>`;
+
+          xml += `    <transition>\n`;
+          xml += `      <from>${fromId}</from>\n`;
+          xml += `      <to>${toId}</to>\n`;
+          xml += `      ${readTag}\n`;
+          xml += `      ${writeTag}\n`;
+          xml += `      <move>${trans.dir}</move>\n`;
+          xml += `    </transition>\n`;
+        }
+      });
+
+      xml += '  </automaton>\n</structure>';
+
+      // Enviar ao servidor local para gravar na pasta jflap/
+      fetch('/save-jff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: fileName, content: xml })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error(`Servidor retornou ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        if (data.ok) {
+          log(`✔ JFF SALVO NA PASTA jflap/: ${fileName}`);
+        } else {
+          log(`✖ ERRO AO SALVAR JFF — verifique o servidor`);
+        }
+      })
+      .catch(err => {
+        log(`✖ ERRO AO SALVAR JFF: ${err.message} — verifique se o servidor (web_turing.py) está rodando`);
+      });
+    }
+
+    window.addEventListener("resize", renderTapeCells);
+    window.onload = init;
+  </script>
+</body>
+</html>
