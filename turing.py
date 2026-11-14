@@ -429,6 +429,9 @@ class BinaryAdditionTM(TuringMachine):
         history: List[Step] = []
         step_n = 0
 
+        if verbose:
+            self._print_header()
+
         # alinhamento dos comprimentos dos números com zeros à esquerda
         maxlen = max(len(A_str), len(B_str))
         A_str  = A_str.zfill(maxlen)
@@ -456,6 +459,8 @@ class BinaryAdditionTM(TuringMachine):
                 transition = Transition(f"q_c{carry}", str(bit_r), LEFT),
             )
             history.append(snap)
+            if verbose:
+                self._print_step(snap)
             result.append(str(bit_r))
             step_n += 1
 
@@ -480,17 +485,19 @@ class BinaryAdditionTM(TuringMachine):
             transition = None,
         )
         history.append(final_snap)
+        if verbose:
+            self._print_step(final_snap)
+            self._print_footer(True, result_str, step_n)
         return True, result_str, history
 
 
 # menu interativo de linha de comando para apresentações
 MENU = """
 ╔════════════════════════════════════════════════════════════╗
-║        MÁQUINA DE TURING TRADUTORA — f: Σ* → Γ*           ║
+║        MÁQUINA DE TURING TRADUTORA — f: Σ* → Γ*            ║
 ╠════════════════════════════════════════════════════════════╣
 ║  1. Incremento Binário      ex: 0111     → 1000            ║
 ║  2. Adição Unária           ex: 111011   → 11111           ║
-║                             W(x)∈{1}⁺, sep='0': 111·0·11  ║
 ║  3. Cópia de String         ex: 101      → 101#101         ║
 ║  4. Complemento de Dois     ex: 0011     → 1101            ║
 ║  5. Adição Binária          ex: 011+101  → 1000            ║
