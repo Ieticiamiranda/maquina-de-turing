@@ -19,7 +19,7 @@ $$M = (Q, \Sigma, \Gamma, \delta, q_0, B, F)$$
 
 - **Incremento Binário ($n \to n + 1$):** Adiciona 1 a uma palavra binária tratando a propagação de transporte (*carry*) e expansão da fita em caso de *overflow*.
 - **Adição Unária ($1^m \cdot 0 \cdot 1^n \to 1^{m+n}$):** Soma dois números representados em notação unária separados por `0`.
-- **Duplicação de Cadeia Binária ($w \to w \# w$):** Duplica uma palavra binária arbitrária através de marcadores no alfabeto de fita auxiliar $\Gamma \setminus \Sigma = \{a, b, \#, \_\}$.
+- **Duplicação de Cadeia Binária (`w → w#w`):** Duplica uma palavra binária arbitrária através de marcadores no alfabeto de fita auxiliar `Γ \ Σ = {a, b, #, _}`.
 - **Complemento de Dois ($\sim n + 1$):** Inverte o valor binário em passada única retroativa preservando zeros e o primeiro bit `1`.
 - **Adição Binária ($A + B \to \text{Soma}$):** Efetua a soma posicional de dois números binários com memória de transporte (*ripple-carry*) codificada diretamente nos estados.
 - **Integração com JFLAP:** Exportador nativo que converte as máquinas definidas no código para arquivos `.jff` (XML) com posicionamento circular trigonométrico dos estados.
@@ -44,7 +44,7 @@ O projeto foi construído utilizando **exclusivamente a biblioteca padrão do Py
 1. Clone o repositório e navegue até a pasta do projeto:
 
 ```bash
-gitclone https://github.com/Ieticiamiranda/maquina-de-turing.git
+git clone https://github.com/Ieticiamiranda/maquina-de-turing.git
 cd maquina-de-turing/turing
 ```
 
